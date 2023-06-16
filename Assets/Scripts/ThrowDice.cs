@@ -3,8 +3,8 @@ using UnityEngine;
 
 public class ThrowDice : MonoBehaviour
 {
-    public bool onTable = false;
-    public bool isThrown = false;
+    public bool onTable;
+    public bool isThrown;
 
     public float faceCheckCapacityQuarternion = 0.04f;
     public float throwForceMagnitude = 1.5f;
@@ -28,9 +28,10 @@ public class ThrowDice : MonoBehaviour
         return (float)num;
     }
 
+
     public int CheckFace()
     {
-        int face = 0;
+          int face = 0;
         Quaternion quarternion = gameObject.transform.localRotation;
 
         if (Math.Abs(Math.Pow(quarternion.x, 2) - Math.Pow(quarternion.z, 2)) < faceCheckCapacityQuarternion)
@@ -94,11 +95,19 @@ public class ThrowDice : MonoBehaviour
         return moving;
     }
 
-    void OnCollisionStay(Collision collision)
+    void OnCollisionEnter(Collision collision)
     {
         if (collision.gameObject.name == "table")
         {
             onTable = true;
+        }
+    }
+
+    void OnCollisionExit(Collision collision)
+    {
+        if (collision.gameObject.name == "table")
+        {
+            onTable = false;
         }
     }
 

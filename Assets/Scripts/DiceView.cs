@@ -1,5 +1,3 @@
-using System.Collections;
-using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.UI;
 
@@ -11,9 +9,9 @@ public class DiceView : MonoBehaviour
     public Vector3 resultPanelScale;
     public GameObject prefabResultPanel;
 
-    GameObject[] diceSelection;
+    DiceSelectView[] diceSelection;
 
-    public void SetSelectDices(GameObject[] diceSelection, int selectedDiceIndex)
+    public void SetSelectDices(DiceSelectView[] diceSelection, int selectedDiceIndex)
     {
         this.diceSelection = diceSelection;
         SelectedDiceToHIghlightLayer(selectedDiceIndex);
@@ -23,8 +21,8 @@ public class DiceView : MonoBehaviour
     {
         for (int i = 0; i < diceSelection.Length; i++)
         {
-            if (diceSelection[i] != null && i == selectedDiceIndex) { diceSelection[i].GetComponent<DiceSelectView>().SetLayer(3); }
-            else if (diceSelection[i] != null){ diceSelection[i].GetComponent<DiceSelectView>().SetLayer(5); }
+            if (diceSelection[i] != null && i == selectedDiceIndex) { diceSelection[i].SetLayer(3); }
+            else if (diceSelection[i] != null){ diceSelection[i].SetLayer(5); }
         }
     }
 
@@ -41,13 +39,13 @@ public class DiceView : MonoBehaviour
         return Resources.Load<Texture2D>($"DiceFaces/{diceFaceMaterial}/images/image_{faceIndex + 1}");
     }
 
-    public void PlayerSetResultDiceFace(int player, int[,] resultFaceIndex, string diceFaceMaterial)
+    public void SetResultDiceFace(int position, int[] resultFaceIndex, string[] diceFaceMaterial)
     {
-        for (int j = 0; j < resultFaceIndex.GetLength(1); j++)
+        for (int j = 0; j < resultFaceIndex.Length; j++)
         {
-            if (resultFaceIndex[player, j] >= 0)
+            if (resultFaceIndex[j] >= 0)
             {
-                Texture2D resultDiceFace = GetFaceTexture(resultFaceIndex[player, j], diceFaceMaterial);
+                Texture2D resultDiceFace = GetFaceTexture(resultFaceIndex[j], diceFaceMaterial[j]);
                 GameObject obj = Instantiate(prefabResultPanel);
 
                 obj.GetComponent<Image>().sprite = Sprite.Create(
@@ -58,18 +56,9 @@ public class DiceView : MonoBehaviour
                 obj.transform.SetParent(gameObject.transform, false);
 
                 RectTransform rt = obj.GetComponent<RectTransform>();
-                rt.localPosition = resultPanelOffset + resultPanelVSpan * player + resultPanelHSpan * j;
+                rt.localPosition = resultPanelOffset + resultPanelVSpan * position + resultPanelHSpan * j;
                 rt.localScale = resultPanelScale;
             }
-        }
-    }
-
-    public void SetResultDiceFace(int[,] resultFaceIndex, string[] diceFaceMaterial)
-    {
-        ResetDiceFaceFrame();
-        for (int i = 0; i < resultFaceIndex.GetLength(0); i++) 
-        {
-            PlayerSetResultDiceFace(i, resultFaceIndex, diceFaceMaterial[i]);
         }
     }
 
@@ -77,20 +66,9 @@ public class DiceView : MonoBehaviour
     {
         if (!(diceSelection == null || diceSelection.Length == 0))
         {
-            foreach (GameObject dice in diceSelection)
+            foreach (DiceSelectView dice in diceSelection)
             {
-                Destroy(dice);
-            }
-        }
-    }
-
-    public void FlipDice()
-    {
-        foreach (GameObject dice in diceSelection)
-        {
-            if (dice != null)
-            {
-                dice.GetComponent<DiceSelectView>().FlipDice();
+                if (dice != null) { Destroy(dice.gameObject); }
             }
         }
     }

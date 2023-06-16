@@ -1,39 +1,73 @@
-using System.Collections;
-using System.Collections.Generic;
+using Photon.Pun;
 using UnityEngine;
 
 public class Player : MonoBehaviour
 {
+    public PhotonView photonView;
+    public DiceView diceUI;
+
+    public int playerID;
+    public string playerName = "player";
+    public bool isAI = false;
     public int coin = 1000;
     public Vector3 playerPosition = new Vector3(0f, 3f, -1.4f);
     public Vector3 throwTarget = new Vector3(0f, 4f, 0f);
     public Vector3 tableCenter = new Vector3(0f, 3f, 0f);
     public float rotateAngle = 120f;
-    public bool isFold = false;
+    public string faceMaterial = "Illust_ya";
 
+    public bool isCall = false;
+    public bool isFold = false;
     public int selectedDice = -1;
 
-    bool isAI = false;
     GameObject[] playersDice;
     int selectedDiceCache = -1;
     int payed = 0;
 
+    void CheckMine()
+    {
+        if (photonView.IsMine)
+        {
+            foreach (Transform child in gameObject.transform)
+            {
+                child.gameObject.SetActive(true);
+            }
+        }
+        else
+        {
+            foreach (Transform child in gameObject.transform)
+            {
+                child.gameObject.SetActive(false);
+            }
+        }
+    }
+
     public void ResetTurn()
     {
         selectedDice = selectedDiceCache;
+        isCall = false;
         isFold = false;
         payed = 0;
+        if (isAI) { gameObject.GetComponent<PlayerAI>().SetTendency(); }
     }
 
     public void SetDice(GameObject[] playersDice)
     {
         this.playersDice = playersDice;
+        for (int i = 0; i < this.playersDice.Length; i++)
+        {
+            this.playersDice[i].GetComponent<DiceBase>().diceID = i;
+        }
     }
 
     public void SetIsAI(bool isAI)
     {
         this.isAI = isAI;
-        if ( !isAI)
+        if (isAI)
+        {
+            playerName = gameObject.GetComponent<PlayerAI>().RandomName();
+        }
+        else
         {
             gameObject.GetComponent<PlayerAI>().enabled = false;
         }
@@ -62,21 +96,49 @@ public class Player : MonoBehaviour
         selectedDiceCache = selectedDice;
     }
 
-    public GameObject[] GetSelectDice(bool allFetch)
+    public void SetSelectDiceView(bool allFetch)
     {
-        GameObject[] selectDice = new GameObject[playersDice.Length];
+        DiceSelectView[] selectDice = new DiceSelectView[playersDice.Length];
         for (int i = 0; i < selectDice.Length; i++)
         {
             if (allFetch || i != selectedDice)
             {
-                GameObject copyDice = playersDice[i].GetComponent<DiceBase>().GetDiceSelectView();
+                GameObject copyDice = playersDice[i].GetComponent<DiceBase>().GetDiceSelectView(
+                    allFetch ? gameObject.GetComponent<Player>() : null);
                 DiceSelectView diceView = copyDice.GetComponent<DiceSelectView>();
                 diceView.InitSelectPositionMove(i);
                 diceView.SetSelectView();
-                selectDice[i] = copyDice;
+                selectDice[i] = diceView;
             }
         }
-        return selectDice;
+        diceUI.SetSelectDices(selectDice, selectedDice);
+    }
+
+    void SetResultDice(int playerID, int position, int[,] resultFaceIndex, string[,] materials)
+    {
+        int[] faceIndex = new int[resultFaceIndex.GetLength(1)];
+        string[] mats = new string[materials.GetLength(1)];
+        for (int i = 0; i < faceIndex.Length; i++)
+        {
+            faceIndex[i] = resultFaceIndex[playerID, i];
+            mats[i] = materials[playerID, i];
+        }
+        diceUI.SetResultDiceFace(position, faceIndex, mats);
+    }
+
+    public void SetMyResultDice(int[,] resultFaceIndex, string[,] materials) 
+    {
+        diceUI.ResetDiceFaceFrame();
+        SetResultDice(playerID, 0, resultFaceIndex, materials);
+    }
+
+    public void SetAllResultDice(int[,] resultFaceIndex, string[,] materials)
+    {
+        diceUI.ResetDiceFaceFrame();
+        for (int player = 0; player < resultFaceIndex.GetLength(0); player++)
+        {
+            SetResultDice(player, player, resultFaceIndex, materials);
+        }
     }
 
     public int GetDiceFace(int index, int face)
@@ -138,6 +200,11 @@ public class Player : MonoBehaviour
         return thrownDices;
     }
 
+    public void ResetBetStatus()
+    {
+        isCall = false; isFold = false;
+    }
+
     public int PayCoin(int amount)
     {
         int pay = amount - payed;
@@ -154,15 +221,25 @@ public class Player : MonoBehaviour
         coin += amount;
     }
 
+    private void OnEnable()
+    {
+        CheckMine();
+    }
+
     // Start is called before the first frame update
     void Start()
     {
-        
+        CheckMine();
     }
 
     // Update is called once per frame
     void Update()
     {
         
+    }
+
+    private void FixedUpdate()
+    {
+
     }
 }

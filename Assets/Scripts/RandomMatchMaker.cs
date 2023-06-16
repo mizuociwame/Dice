@@ -1,9 +1,6 @@
-using System.Collections;
-using System.Collections.Generic;
-using UnityEngine;
 using Photon.Pun;
 using Photon.Realtime;
-using Unity.VisualScripting;
+using UnityEngine;
 
 public class RandomMatchMaker : MonoBehaviourPunCallbacks
 {
@@ -11,20 +8,25 @@ public class RandomMatchMaker : MonoBehaviourPunCallbacks
 
     public override void OnJoinedRoom()
     {
-        PhotonNetwork.Instantiate(
-            PhotonObject.name,
-            new Vector3(0f, 1f, 0f),
+        GameManager gm = gameObject.GetComponent<GameManager>();
+
+        GameObject playerObj = PhotonNetwork.Instantiate(
+            gm.prefabPlayer.name,
+            Vector3.zero,
             Quaternion.identity,
             0
         );
-
-        GameObject mainCamera = GameObject.FindWithTag("MainCamera");
+        int playerID = PhotonNetwork.CurrentRoom.PlayerCount - 1;
+        Player player = playerObj.GetComponent<Player>();
+        player.playerID = playerID;
+        player.SetPosition(playerID);
+        gm.AddPlayer(playerObj);
     }
 
     public override void OnJoinRandomFailed(short returnCode, string message)
     {
         RoomOptions roomOption = new RoomOptions();
-        roomOption.MaxPlayers = 3;
+        roomOption.MaxPlayers = gameObject.GetComponent<GameManager>().numPlayers;
         PhotonNetwork.CreateRoom(null, roomOption);
     }
 

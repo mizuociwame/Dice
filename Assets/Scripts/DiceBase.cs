@@ -1,9 +1,12 @@
-using System.Collections;
-using System.Collections.Generic;
+using ExitGames.Client.Photon;
+using Photon.Pun;
+using Photon.Realtime;
 using UnityEngine;
 
 public class DiceBase : MonoBehaviour
 {
+    public int diceID;
+
     public int numDiceFaces = 6;
     public string diceFaceMaterial;
 
@@ -35,23 +38,51 @@ public class DiceBase : MonoBehaviour
         return faces[index];
     }
 
-    private GameObject GetInstance(bool isThrowDice, bool isDiceSelectView)
+    private GameObject GetInstance(bool isThrowDice, bool isDiceSelectView, Player owner)
     {
         GameObject instance = Instantiate(gameObject);
         instance.GetComponent<ThrowDice>().enabled = isThrowDice;
         instance.GetComponent<DiceSelectView>().enabled = isDiceSelectView;
+        PhotonView photonView = instance.GetComponent<PhotonView>();
+        if (PhotonNetwork.AllocateViewID(photonView))
+        {
+            RaiseEventOptions raiseEventOptions = new RaiseEventOptions
+            {
+                Receivers = ReceiverGroup.Others,
+                CachingOption = EventCaching.AddToRoomCache
+            };
+            SendOptions sendOptions = new SendOptions{ Reliability = true };
+            PhotonNetwork.RaiseEvent((byte)1, photonView.ViewID, raiseEventOptions, sendOptions);
+        }
+        else { Destroy(instance); }
+
+        if ( isDiceSelectView )
+        {
+            if (!instance.GetPhotonView().IsMine) { instance.SetActive(false); }
+            else
+            {
+                instance.GetComponent<PhotonView>().enabled = false;
+                instance.GetComponent<PhotonTransformView>().enabled = false;
+                instance.GetComponent<DiceSelectButton>().owner = owner;
+            }
+        }
+        else
+        {
+            instance.GetComponent<BaseButton>().enabled = false;
+            instance.GetComponent<DiceSelectButton>().enabled = false;
+        }
         instance.SetActive(true);
         return instance;
     }
 
     public GameObject GetThrowDice()
     {
-        return GetInstance(true, false);
+        return GetInstance(true, false, null);
     }
 
-    public GameObject GetDiceSelectView()
+    public GameObject GetDiceSelectView(Player owner)
     {
-        return GetInstance(false, true);
+        return GetInstance(false, true, owner);
     }
 
     // Start is called before the first frame update

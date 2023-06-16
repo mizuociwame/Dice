@@ -1,12 +1,9 @@
-using JetBrains.Annotations;
+using Photon.Pun;
 using System;
 using System.Collections;
 using System.Linq;
-using Unity.VisualScripting;
+using TMPro;
 using UnityEngine;
-using UnityEngine.ProBuilder.MeshOperations;
-using UnityEngine.XR;
-using static UnityEngine.UI.GridLayoutGroup;
 
 public struct Face
 {
@@ -106,44 +103,57 @@ public struct Hand
 
 public class GameManager : MonoBehaviour
 {
+    public GameObject prefabDice;
+    public GameObject prefabPlayer;
+    public CoinView coinUI;
+    public InformationController informationController;
+    [SerializeField] GameObject nameField;
+    [SerializeField] ButtonController buttonController;
+    [SerializeField] ButtonListener buttonListener;
+
     public int numPlayers = 3;
     public int dicesPerPlayer = 3;
     public int numbers = 13;
     public int numSuits = 4;
     public int numResultDices = 5;
-    public GameObject prefabDice;
-    public GameObject prefabPlayer;
     public float timeToThrow = 0.5f;
     public float timeToViewResult = 1f;
-    public GameObject diceUI;
-    public GameObject coinUI;
     public int rate;
-    public int betCoin;
 
-    int gamePhase = 0;
+    public int betCoin;
+    [SerializeField] int inPhaseTurn = 5;
+
+    Player myPlayer;
+    int gamePhase = -1;
     int[] allDiceFaces;
     GameObject[] players;
     ThrowDice[,] thrownDice;
+    int operationPlayerID = 0;
     Face[,] result;
     int[,] resultFaceIndex;
-    int preTurnBetCoin;
+    string[,] materials;
+    int preBetCoin;
     int carry;
-    int callCount;
-    int foldCount;
     int winner;
+    int elapsedTurn = 0;
+
+    bool stepPhase = false;
     // Start is called before the first frame update
 
     int CountMovingDices()
     {
         int count = 0;
-        foreach (ThrowDice dice in thrownDice)
+        if (thrownDice != null)
         {
-            if (dice == null || (dice.onTable && !dice.CheckMoving()))
+            foreach (ThrowDice dice in thrownDice)
             {
-                count++;
+                if (dice == null || (dice.onTable && !dice.CheckMoving()))
+                {
+                    count++;
+                }
             }
         }
-        return count;
+          return count;
     }
 
     void CreateDices()
@@ -153,21 +163,23 @@ public class GameManager : MonoBehaviour
 
         for (int player = 0;  player < numPlayers; player++)
         {
+            Player playerObj = players[player].GetComponent<Player>();
             GameObject[] diceObjects = new GameObject[dicesPerPlayer];
             for (int dice = 0; dice < dicesPerPlayer; dice++)
             {
                 diceObjects[dice] = Instantiate(prefabDice);
                 DiceBase diceBase = diceObjects[dice].GetComponent<DiceBase>();
                 int faceArrayStartPosition = diceBase.numDiceFaces * (player * dicesPerPlayer + dice);
+                diceBase.SetDiceFaceMaterial(playerObj.faceMaterial);
                 diceBase.Initialize(allDiceFaces[faceArrayStartPosition..(faceArrayStartPosition + diceBase.numDiceFaces)]);
             }
             players[player].GetComponent<Player>().SetDice(diceObjects);
         }
     }
 
-    void SetThrowDice()
+    void SetThrowDice(int phase)
     {
-        if (gamePhase == 1)
+        if (phase == 0)
         {
             thrownDice = new ThrowDice[numPlayers, 1];
             for (int player = 0; player < numPlayers; player++)
@@ -175,7 +187,7 @@ public class GameManager : MonoBehaviour
                 thrownDice[player, 0] = players[player].GetComponent<Player>().ThrowSelectedDice();
             }
         }
-        else if (gamePhase == 3) 
+        else if (phase == 2) 
         {
             thrownDice = new ThrowDice[numPlayers, dicesPerPlayer - 1];
             for (int player = 0; player < numPlayers; player++)
@@ -222,31 +234,14 @@ public class GameManager : MonoBehaviour
         }
     }
 
-    void RefreshBoard()
+    void RefreshDiceView()
     {
-        CoinView coinUIComponent = coinUI.GetComponent<CoinView>();
-        Player[] playersComponent = new Player[players.Length];
-        for (int i = 0; i < players.Length; i++) 
-        { 
-            playersComponent[i] = players[i].GetComponent<Player>(); 
-        }
-        coinUIComponent.SetPlayers(playersComponent);
-        coinUIComponent.SetGameManager(gameObject.GetComponent<GameManager>());
-
-        DestroyPlayerDice();
-        CreateDices();
-        carry = 0;
-        ToPhaseFirstBet();
+        myPlayer.diceUI.DestroyDiceSelection();
+        myPlayer.diceUI.ResetDiceFaceFrame();
     }
 
-    void ResetTurn()
+    void ResetResult()
     {
-        DiceView diceUIComponent = diceUI.GetComponent<DiceView>();
-        diceUIComponent.DestroyDiceSelection();
-        diceUIComponent.ResetDiceFaceFrame();
-
-        DestroyThrownDice();
-
         result = new Face[numPlayers, numResultDices];
         resultFaceIndex = new int[numPlayers, numResultDices];
         for (int i = 0; i < numPlayers; i++)
@@ -256,92 +251,145 @@ public class GameManager : MonoBehaviour
                 resultFaceIndex[i, j] = -1;
             }
         }
+    }
+
+    void SetMaterials()
+    {
+        materials = new string[numPlayers, numResultDices];
+        for (int i = 0; i < numPlayers; i++) 
+        {
+            for (int j = 0; j < numPlayers; j++)
+            {
+                materials[i, j] = players[j].GetComponent<Player>().faceMaterial;
+            }
+            materials[i, numPlayers] = players[i].GetComponent<Player>().faceMaterial;
+            materials[i, numPlayers+1] = players[i].GetComponent<Player>().faceMaterial;
+        }
+    }
+
+    void RefreshBoard()
+    {
+        Player[] playersComponents = new Player[players.Length];
+        for (int i = 0; i < players.Length; i++) 
+        { 
+            playersComponents[i] = players[i].GetComponent<Player>(); 
+        }
+        SetMaterials();
+        coinUI.SetPlayers(playersComponents);
+        coinUI.SetGameManager(gameObject.GetComponent<GameManager>());
+
+        ResetPhase();
+    }
+
+    void ResetPhase()
+    {
+        DestroyPlayerDice();
+        CreateDices();
+        carry = 0;
+        elapsedTurn = 0;
+        ResetTurn();
+    }
+
+    void ResetTurn()
+    {
+        RefreshDiceView();
+        DestroyThrownDice();
+        ResetResult();
 
         foreach (GameObject player in players)
         {
             player.GetComponent<Player>().ResetTurn();
         }
 
+        gamePhase = 0;
+        stepPhase = false;
         betCoin = rate;
-        preTurnBetCoin = 0;
+        preBetCoin = 0;
         winner = -1;
     }
 
     void ToPhaseFirstBet()
     {
-        ResetTurn();
-        Player player = players[0].GetComponent<Player>();
-        diceUI.GetComponent<DiceView>().SetSelectDices(player.GetSelectDice(true), player.selectedDice);
-        gamePhase = 0;
+        myPlayer.SetSelectDiceView(true);
+        foreach (GameObject playerObj in players)
+        {
+            Player player = playerObj.GetComponent<Player>();
+            if (player.isAI) 
+            { 
+                player.isCall = true;
+                player.SetSelectedDice(player.GetComponent<PlayerAI>().RandomSelectDice(dicesPerPlayer));
+            }
+        }
+
+        informationController.ResetInformation();
+        informationController.SetTop("choose the dice to share.");
+
+        buttonController.ResetButtonLayout();
+        buttonController.SetConfirmButton("OK");
+    }
+
+    void CheckCall()
+    {
+        int readyCount = 0;
+        foreach (GameObject playerObj in players)
+        {
+            Player player = playerObj.GetComponent<Player>();
+            if (player.isCall || player.isFold) { readyCount++; }
+        }
+
+        if (readyCount == numPlayers) { stepPhase = true; }
+        else { stepPhase = false; }
     }
 
     void KeyReceiveFirstBet()
     {
-        if (Input.GetKeyDown(KeyCode.R) || Input.GetKeyUp(KeyCode.R))
+        if (buttonListener.GetConfirm())
         {
-            diceUI.GetComponent<DiceView>().FlipDice();
+            myPlayer.isCall = !myPlayer.isCall;
         }
-        else if (Input.GetKeyDown(KeyCode.Alpha1))
-        {
-            players[0].GetComponent<Player>().SetSelectedDice(0);
-            diceUI.GetComponent<DiceView>().SelectedDiceToHIghlightLayer(0);
-        }
-        else if (Input.GetKeyDown(KeyCode.Alpha2))
-        {
-            players[0].GetComponent<Player>().SetSelectedDice(1);
-            diceUI.GetComponent<DiceView>().SelectedDiceToHIghlightLayer(1);
-        }
-        else if (Input.GetKeyDown(KeyCode.Alpha3))
-        {
-            players[0].GetComponent<Player>().SetSelectedDice(2);
-            diceUI.GetComponent<DiceView>().SelectedDiceToHIghlightLayer(2);
-        }
-        else if (Input.GetKeyDown(KeyCode.Space))
-        {
-            StartCoroutine(ToPhaseFirstThrow());
-        }
+
+        buttonListener.ResetButtons();
         // test code
-        else if (Input.GetKeyDown(KeyCode.T))
-        {
-            Hand hand = CheckHand(new Face[] 
-            { 
-                new Face(0, 14),
-                new Face(-1, -1),
-                new Face(4, 13),
-                new Face(-1, -1),
-                new Face(2, 13)
-            });
-        }
+        // if (Input.GetKeyDown(KeyCode.T))
+        // {
+        //     Hand hand = CheckHand(new Face[] 
+        //     { 
+        //         new Face(0, 14),
+        //         new Face(-1, -1),
+        //         new Face(4, 13),
+        //         new Face(-1, -1),
+        //         new Face(2, 13)
+        //     });
+        // }
     }
 
-    IEnumerator ToPhaseFirstThrow()
+    IEnumerator ToPhaseFirstThrow(int phase)
     {
-        gamePhase = -1;
-        diceUI.GetComponent<DiceView>().DestroyDiceSelection();
+        myPlayer.diceUI.DestroyDiceSelection();
+        informationController.ResetInformation();
+        buttonController.ResetButtonLayout();
+
+        thrownDice = null;
         foreach (GameObject player in players) 
         {
             player.GetComponent<Player>().PayCoin(betCoin);
             carry += betCoin;
         }
-        preTurnBetCoin = betCoin;
+        preBetCoin = betCoin;
         yield return new WaitForSeconds(timeToThrow);
-        gamePhase = 1;
-        SetThrowDice();
+        SetThrowDice(phase);
     }
 
     void CheckThrownDice()
     {
-        if (CountMovingDices() == thrownDice.Length)
+        if (thrownDice != null && CountMovingDices() == thrownDice.Length)
         {
-            DiceView ui = diceUI.GetComponent<DiceView>();
-            string[] materials = new string[numPlayers];
             if (gamePhase == 1)
             {
                 for (int player = 0; player < numPlayers; player++)
                 {
                     Player playerObj = players[player].GetComponent<Player>();
                     ThrowDice dice = thrownDice[player, 0];
-                    materials[player] = dice.GetComponent<DiceBase>().diceFaceMaterial;
                     int faceIndex = dice.CheckFace();
                     int face = playerObj.GetSelectedDiceFace(faceIndex);
                     for (int i = 0;  i < numPlayers; i++)
@@ -360,8 +408,7 @@ public class GameManager : MonoBehaviour
                         }
                     }
                 }
-                ui.PlayerSetResultDiceFace(0, resultFaceIndex, materials[0]);
-                StartCoroutine(ToPhaseSecondBet());
+                myPlayer.SetMyResultDice(resultFaceIndex, materials);
             }
             else if (gamePhase == 3)
             {
@@ -370,14 +417,13 @@ public class GameManager : MonoBehaviour
                     Player playerObj = players[player].GetComponent<Player>();
                     if (playerObj.isFold) 
                     {
-                        for (int i = 0; i < dicesPerPlayer; i++) { resultFaceIndex[player, i] = -1; }
+                        for (int i = 0; i < numResultDices; i++) { resultFaceIndex[player, i] = -1; }
                     }
                     else
                     {
                         for (int i = 0; i < (dicesPerPlayer - 1); i++)
                         {
                             ThrowDice dice = thrownDice[player, i];
-                            materials[player] = dice.GetComponent<DiceBase>().diceFaceMaterial;
                             int faceIndex = dice.CheckFace();
                             int face = playerObj.GetNonSelectedDiceFace(i, faceIndex);
                             resultFaceIndex[player, numPlayers + i] = face;
@@ -395,94 +441,93 @@ public class GameManager : MonoBehaviour
                         }
                     }
                 }
-                ui.SetResultDiceFace(resultFaceIndex, materials);
-                StartCoroutine(ToPhaseEnd());
+                myPlayer.SetAllResultDice(resultFaceIndex, materials);
             }
+            stepPhase = true;
         }
     }
 
     IEnumerator ToPhaseSecondBet()
     {
-        gamePhase = -1;
-        callCount = 0;
-        foldCount = 0;
+        foreach (GameObject player in players) { player.GetComponent<Player>().ResetBetStatus(); }
         yield return new WaitForSeconds(timeToViewResult);
-        gamePhase = 2;
         DestroyThrownDice();
-        Player player = players[0].GetComponent<Player>();
-        diceUI.GetComponent<DiceView>().SetSelectDices(player.GetSelectDice(false), player.selectedDice);
+        myPlayer.SetSelectDiceView(false);
+
+        informationController.ResetInformation();
+        informationController.SetTop("How much to bet?");
+
+        buttonController.ResetButtonLayout();
+        buttonController.SetConfirmButton("Call");
+        buttonController.SetRejectButton("Fold");
+        buttonController.SetPlusButton("+");
+        buttonController.SetMinusButton("-");
     }
 
-    void Raise(GameObject player)
+    void Squaring(Player player)
     {
-        int pay = player.GetComponent<Player>().PayCoin(betCoin);
-        carry += pay;
-        preTurnBetCoin = betCoin;
-    }
-
-    void AIPlayerRaise(GameObject player)
-    {
-        if (player.GetComponent<PlayerAI>().RandomRaise() == 0) 
-        { 
-            callCount++;
-        }
-        else
+        int pay = player.PayCoin(betCoin);
+        if (pay > 0)
         {
-            betCoin += rate;
-            callCount = 0;
+            carry += pay;
+            preBetCoin = betCoin;
+            foreach (GameObject playerObj in players)
+            {
+                playerObj.GetComponent<Player>().isCall = false;
+            }
         }
-        Raise(player);
-        if (callCount + foldCount == numPlayers) { StartCoroutine(ToPhaseSecondThrow()); }
+        else { player.isCall = true; }
     }
 
     void KeyReceiveSecondBet()
     {
-        if ( Input.GetKeyDown(KeyCode.R) || Input.GetKeyUp(KeyCode.R) )
+        if (!myPlayer.isFold && operationPlayerID == myPlayer.playerID)
         {
-            diceUI.GetComponent<DiceView>().FlipDice();
-        }
-        else if ( Input.GetKeyDown(KeyCode.Space) )
-        {
-            Raise(players[0]);
-            if (betCoin == preTurnBetCoin) 
-            { 
-                callCount++; 
-                if ( callCount + foldCount == numPlayers ) { StartCoroutine(ToPhaseSecondThrow()); }
+            if (buttonListener.GetConfirm())
+            {
+                Squaring(myPlayer);
+                operationPlayerID = (operationPlayerID + 1) % numPlayers;
+                buttonController.SetConfirmButton("Call");
             }
-            else 
-            { 
-                callCount = 0;
+            if (buttonListener.GetReject())
+            {
+                myPlayer.isFold = true;
+                betCoin = preBetCoin;
+                operationPlayerID = (operationPlayerID + 1) % numPlayers;
             }
-            AIPlayerRaise(players[1]);
-            AIPlayerRaise(players[2]);
+            if (buttonListener.GetPlus())
+            {
+                betCoin += rate;
+                buttonController.SetConfirmButton("Raise");
+            }
+            if (buttonListener.GetMinus())
+            {
+                if (betCoin > preBetCoin) { betCoin -= rate; }
+                if (betCoin == preBetCoin) { buttonController.SetConfirmButton("Call"); }
+            }
         }
-        else if ( Input.GetKeyDown(KeyCode.F) )
+        else if (players[operationPlayerID].GetComponent<Player>().isAI)
         {
-            players[0].GetComponent<Player>().isFold = true;
-            foldCount++;
-            StartCoroutine(ToPhaseSecondThrow());
+            betCoin += rate * players[operationPlayerID].GetComponent<PlayerAI>().RandomRaise();
+            Squaring(players[operationPlayerID].GetComponent<Player>());
+            operationPlayerID = (operationPlayerID + 1) % numPlayers;
         }
-        else if ( Input.GetKeyDown(KeyCode.UpArrow) )
-        {
-            betCoin += rate;
-        }
-        else if ( Input.GetKeyDown(KeyCode.DownArrow))
-        {
-            if (betCoin >= preTurnBetCoin + rate) { betCoin -= rate; }
-        }
+
+        buttonListener.ResetButtons();
     }
-    IEnumerator ToPhaseSecondThrow()
+    IEnumerator ToPhaseSecondThrow(int phase)
     {
-        gamePhase = -1;
-        diceUI.GetComponent<DiceView>().DestroyDiceSelection();
+        myPlayer.diceUI.DestroyDiceSelection();
+        informationController.ResetInformation();
+        buttonController.ResetButtonLayout();
+
+        thrownDice = null;
         yield return new WaitForSeconds(timeToThrow);
-        gamePhase = 3;
-        SetThrowDice();
+        SetThrowDice(phase);
     }
 
     IEnumerator ToPhaseEnd()
     {
-        gamePhase = 4;
         yield return new WaitForSeconds(timeToViewResult);
         DestroyThrownDice();
 
@@ -501,12 +546,26 @@ public class GameManager : MonoBehaviour
         }
 
         Hand[] handOrder = resultHands.OrderByDescending(x => x.handClass).ThenByDescending(x => x.handRank).ToArray();
-        if (!(handOrder[0].handClass == handOrder[1].handClass && handOrder[0].handRank == handOrder[1].handRank)) { winner = handOrder[0].owner; }
-        if (winner >= 0) 
+        if (!(handOrder[0].handClass == handOrder[1].handClass && handOrder[0].handRank == handOrder[1].handRank))
         { 
-            players[winner].GetComponent<Player>().coin += carry;
+            winner = handOrder[0].owner; 
+        }
+        if (winner >= 0) 
+        {
+            Player winnerPlayer = players[winner].GetComponent<Player>();
+            winnerPlayer.coin += carry;
+
+            informationController.ResetInformation();
+            informationController.SetButtom($"{winnerPlayer.playerName} get {carry} coins.");
             carry = 0;
         }
+        else
+        {
+            informationController.ResetInformation();
+            informationController.SetButtom($"{carry} coins carried over.");
+        }
+        buttonController.ResetButtonLayout();
+        buttonController.SetConfirmButton("To NEXT");
         Debug.Log($"player {winner} is win.");
     }
 
@@ -604,56 +663,143 @@ public class GameManager : MonoBehaviour
         return hand;
     }
 
-    void GatherPlayers(int numAIPlayers)
+    public void AddPlayer(GameObject playerObj)
     {
-        players = new GameObject[numPlayers];
-        for (int i = 0; i < numPlayers; i++)
+        Player player = playerObj.GetComponent<Player>();
+        if (player.playerID == 0)
         {
-            players[i] = Instantiate(prefabPlayer);
-            players[i].GetComponent<Player>().SetPosition(i);
-            if (i < (numPlayers - numAIPlayers))
-            {
-                players[i].GetComponent<Player>().SetIsAI(false);
-            }
+            players = new GameObject[numPlayers];
+            players[0] = playerObj;
         }
+        else { players[player.playerID] = playerObj; }
+
+        if (playerObj.GetPhotonView().IsMine) { myPlayer = player; }
+    }
+
+    void GatherAIPlayers(int currentPlayers)
+    {
+        for (int i = currentPlayers; i < numPlayers; i++)
+        {
+            GameObject AIPlayer = Instantiate(prefabPlayer);
+            AIPlayer.GetComponent<Player>().SetPosition(i);
+            AIPlayer.GetComponent<Player>().SetIsAI(true);
+            players[i] = AIPlayer;
+        }
+    }
+
+    void StepPhase()
+    {
+        if (stepPhase)
+        {
+            int cacheGamePhase = gamePhase;
+            gamePhase = 99;
+
+            switch (cacheGamePhase)
+            {
+                case -1:
+                    {
+                        StartGame(); break;
+                    }
+                case 0:
+                    {
+                        StartCoroutine(ToPhaseFirstThrow(cacheGamePhase)); break;
+                    }
+                case 1:
+                    {
+                        StartCoroutine(ToPhaseSecondBet()); break;
+                    }
+                case 2:
+                    {
+                        StartCoroutine(ToPhaseSecondThrow(cacheGamePhase)); break;
+                    }
+                case 3:
+                    {
+                        StartCoroutine(ToPhaseEnd()); break;
+                    }
+            }
+
+            gamePhase = cacheGamePhase + 1;
+            stepPhase = false;
+        }
+    }
+
+    void StartGame()
+    {
+        GatherAIPlayers(PhotonNetwork.CurrentRoom.PlayerCount);
+        RefreshBoard();
+        coinUI.gameObject.SetActive(true);
+        string yourName = nameField.GetComponent<TMP_InputField>().text;
+        if (yourName.Length > 0 ) { players[0].GetComponent<Player>().playerName = yourName; }
+        nameField.SetActive(false);
+        informationController.SetPlayerName(players);
+        ToPhaseFirstBet();
     }
 
     void Start()
     {
-        GatherPlayers(2);
-        RefreshBoard();
+
     }
 
     // Update is called once per frame
     void Update()
     {
-        if (gamePhase == 0)
+        if (!stepPhase)
         {
-            KeyReceiveFirstBet();
-        }
-        else if (gamePhase == 1)
-        {
-            CheckThrownDice();
-        }
-        else if (gamePhase == 2)
-        {
-            KeyReceiveSecondBet();
-        }
-        else if (gamePhase == 3)
-        {
-            CheckThrownDice();
-        }
-        else if (gamePhase == 4)
-        {
-            if (Input.GetKeyUp(KeyCode.Space))
+            switch (gamePhase)
             {
-                ToPhaseFirstBet();
+                case -1:
+                {
+                    if (buttonListener.GetConfirm())
+                    {
+                        stepPhase = true;
+                        buttonListener.ResetButtons();
+                    }
+                    break;
+                }
+                case 0:
+                {
+                    KeyReceiveFirstBet();
+                    CheckCall(); 
+                    break;
+                }
+                case 1:
+                {
+                    CheckThrownDice(); break;
+                }
+                case 2:
+                {
+                    KeyReceiveSecondBet();
+                    CheckCall();
+                    break;
+                }
+                case 3:
+                {
+                    CheckThrownDice(); break;
+                }
+                case 4:
+                {
+                    if (buttonListener.GetConfirm())
+                    {
+                        if (elapsedTurn > inPhaseTurn)
+                        {
+                            ResetPhase();
+                        }
+                        else
+                        {
+                            elapsedTurn++;
+                            ResetTurn();
+                        }
+                        ToPhaseFirstBet();
+                        buttonListener.ResetButtons();
+                    }
+                    break;
+                }
             }
         }
     }
 
     void FixedUpdate()
     {
-
+        StepPhase();
     }
 }
