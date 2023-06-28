@@ -255,7 +255,6 @@ GameObject:
   - component: {fileID: 1241865766948810427}
   - component: {fileID: 4946815972323019689}
   - component: {fileID: 1264754324048706983}
-  - component: {fileID: 2679193326463236269}
   m_Layer: 0
   m_Name: Player
   m_TagString: Untagged
@@ -293,7 +292,6 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 0eb4878574fed214483eee34cbed4207, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  photonView: {fileID: 2679193326463236269}
   diceUI: {fileID: 3052717669832361697}
   playerID: 0
   playerName: player
@@ -319,28 +317,6 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: fc6a54ed149b6d64d8ad0654d09f0690, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
---- !u!114 &2679193326463236269
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 2996727482778255933}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: aa584fbee541324448dd18d8409c7a41, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: 
-  ObservedComponentsFoldoutOpen: 1
-  Group: 0
-  prefixField: -1
-  Synchronization: 3
-  OwnershipTransfer: 0
-  observableSearch: 2
-  ObservedComponents: []
-  sceneViewId: 0
-  InstantiationId: 0
-  isRuntimeInstantiated: 0
 --- !u!1 &7653498862246289793
 GameObject:
   m_ObjectHideFlags: 0

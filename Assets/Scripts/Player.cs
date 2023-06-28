@@ -1,9 +1,7 @@
-using Photon.Pun;
 using UnityEngine;
 
 public class Player : MonoBehaviour
 {
-    public PhotonView photonView;
     public DiceView diceUI;
 
     public int playerID;
@@ -26,7 +24,7 @@ public class Player : MonoBehaviour
 
     void CheckMine()
     {
-        if (photonView.IsMine)
+        if (playerID == 0)
         {
             foreach (Transform child in gameObject.transform)
             {

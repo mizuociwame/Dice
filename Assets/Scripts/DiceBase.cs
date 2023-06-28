@@ -1,6 +1,3 @@
-using ExitGames.Client.Photon;
-using Photon.Pun;
-using Photon.Realtime;
 using UnityEngine;
 
 public class DiceBase : MonoBehaviour
@@ -43,28 +40,10 @@ public class DiceBase : MonoBehaviour
         GameObject instance = Instantiate(gameObject);
         instance.GetComponent<ThrowDice>().enabled = isThrowDice;
         instance.GetComponent<DiceSelectView>().enabled = isDiceSelectView;
-        PhotonView photonView = instance.GetComponent<PhotonView>();
-        if (PhotonNetwork.AllocateViewID(photonView))
-        {
-            RaiseEventOptions raiseEventOptions = new RaiseEventOptions
-            {
-                Receivers = ReceiverGroup.Others,
-                CachingOption = EventCaching.AddToRoomCache
-            };
-            SendOptions sendOptions = new SendOptions{ Reliability = true };
-            PhotonNetwork.RaiseEvent((byte)1, photonView.ViewID, raiseEventOptions, sendOptions);
-        }
-        else { Destroy(instance); }
 
         if ( isDiceSelectView )
         {
-            if (!instance.GetPhotonView().IsMine) { instance.SetActive(false); }
-            else
-            {
-                instance.GetComponent<PhotonView>().enabled = false;
-                instance.GetComponent<PhotonTransformView>().enabled = false;
-                instance.GetComponent<DiceSelectButton>().owner = owner;
-            }
+            instance.GetComponent<DiceSelectButton>().owner = owner;
         }
         else
         {

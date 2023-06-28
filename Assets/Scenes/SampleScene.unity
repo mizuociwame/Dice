@@ -3313,7 +3313,6 @@ GameObject:
   serializedVersion: 6
   m_Component:
   - component: {fileID: 1819659400}
-  - component: {fileID: 1819659401}
   - component: {fileID: 1819659402}
   m_Layer: 0
   m_Name: PhotonController
@@ -3337,19 +3336,6 @@ Transform:
   m_Father: {fileID: 0}
   m_RootOrder: 4
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
---- !u!114 &1819659401
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 1819659399}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 24dc2f9b295c7a1408f9cc6f7a0646da, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: 
-  PhotonObject: {fileID: 3452512025996067704, guid: bdaf47d8e0c2ebb46bd65bc0c1991bd0, type: 3}
 --- !u!114 &1819659402
 MonoBehaviour:
   m_ObjectHideFlags: 0

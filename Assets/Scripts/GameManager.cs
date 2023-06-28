@@ -1,4 +1,3 @@
-using Photon.Pun;
 using System;
 using System.Collections;
 using System.Linq;
@@ -663,26 +662,28 @@ public class GameManager : MonoBehaviour
         return hand;
     }
 
-    public void AddPlayer(GameObject playerObj)
-    {
-        Player player = playerObj.GetComponent<Player>();
-        if (player.playerID == 0)
-        {
-            players = new GameObject[numPlayers];
-            players[0] = playerObj;
-        }
-        else { players[player.playerID] = playerObj; }
+    // public void AddPlayer(GameObject playerObj)
+    // {
+    //     Player player = playerObj.GetComponent<Player>();
+    //     if (player.playerID == 0)
+    //     {
+    //         players = new GameObject[numPlayers];
+    //         players[0] = playerObj;
+    //     }
+    //     else { players[player.playerID] = playerObj; }
 
-        if (playerObj.GetPhotonView().IsMine) { myPlayer = player; }
-    }
+    //     if (playerObj.GetPhotonView().IsMine) { myPlayer = player; }
+    // }
 
     void GatherAIPlayers(int currentPlayers)
     {
         for (int i = currentPlayers; i < numPlayers; i++)
         {
             GameObject AIPlayer = Instantiate(prefabPlayer);
-            AIPlayer.GetComponent<Player>().SetPosition(i);
-            AIPlayer.GetComponent<Player>().SetIsAI(true);
+            Player playerObj = AIPlayer.GetComponent<Player>();
+            playerObj.SetPosition(i);
+            playerObj.playerID = i;
+            if (i > 0) { playerObj.SetIsAI(true); }
             players[i] = AIPlayer;
         }
     }
@@ -725,7 +726,7 @@ public class GameManager : MonoBehaviour
 
     void StartGame()
     {
-        GatherAIPlayers(PhotonNetwork.CurrentRoom.PlayerCount);
+        GatherAIPlayers(1);
         RefreshBoard();
         coinUI.gameObject.SetActive(true);
         string yourName = nameField.GetComponent<TMP_InputField>().text;
@@ -737,7 +738,12 @@ public class GameManager : MonoBehaviour
 
     void Start()
     {
-
+        players = new GameObject[numPlayers];
+        GameObject player = Instantiate(prefabPlayer);
+        myPlayer = player.GetComponent<Player>();
+        myPlayer.SetPosition(0);
+        myPlayer.playerID = 0;
+        players[0] = player;
     }
 
     // Update is called once per frame
